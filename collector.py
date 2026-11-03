@@ -65,11 +65,15 @@ def in_window(t):
     return config.COLLECT_START_HOUR <= t.hour < config.COLLECT_END_HOUR
 
 
-def loop():
+def route_calls_per_day():
+    """Routing calls per day: one per segment per sample, plus one per benchmark horizon."""
     n_seg = len(config.NODES) - 1
-    calls_per_day = (n_seg * len(config.DIRECTIONS)
-                     * (config.COLLECT_END_HOUR - config.COLLECT_START_HOUR)
-                     * 60 // config.INTERVAL_MINUTES)
+    samples = (config.COLLECT_END_HOUR - config.COLLECT_START_HOUR) * 60 // config.INTERVAL_MINUTES
+    return n_seg * len(config.DIRECTIONS) * (1 + len(config.BENCHMARK_HORIZONS_MIN)) * samples
+
+
+def loop():
+    calls_per_day = route_calls_per_day()
     print(f"About {calls_per_day} route calls/day (~{calls_per_day * 7} per week). "
           f"Check {config.PROVIDER} routing pricing and free quota before a long run.")
     interval = config.INTERVAL_MINUTES * 60
