@@ -28,6 +28,7 @@ import os
 
 import joblib
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,7 +39,8 @@ import config
 
 OUT = "output/forecast"
 STEP = pd.Timedelta(minutes=config.INTERVAL_MINUTES)
-HORIZONS_MIN = [15, 30, 60]
+HORIZONS_MIN = [15, 30, 60]   # horizons that are not a multiple of INTERVAL_MINUTES are skipped
+EXAMPLE_HORIZON_MIN = 30
 PEAK_HOURS = [(7, 11), (17, 21)]
 CONGESTED_RATIO = 2.0   # travel time at least twice free-flow
 FEATURES = ["seg", "r_now", "r_lag1", "r_lag2", "r_lag4", "r_up", "r_down", "r_down2",
@@ -74,6 +76,10 @@ def load_provider(df, h_min):
     if col not in df.columns or df[col].isna().all():
         return None
     return df.pivot_table(index="timestamp", columns=["direction", "seg_order"], values=col, aggfunc="mean")
+
+
+def horizons():
+    return [h for h in HORIZONS_MIN if h % config.INTERVAL_MINUTES == 0]
 
 
 def shifted(R, steps):
@@ -187,9 +193,15 @@ def main():
     R = W / ff
     P = profile_table(R[~is_test])
 
+    skipped = sorted(set(HORIZONS_MIN) - set(horizons()))
+    if skipped:
+        print(f"Skipping horizons {skipped} min: not a multiple of the {config.INTERVAL_MINUTES}-min sample interval")
+    if not horizons():
+        raise SystemExit("No forecast horizon fits the sample interval; adjust HORIZONS_MIN.")
+
     os.makedirs(OUT, exist_ok=True)
     metrics, models, example, rain_notes = [], {}, {}, {}
-    for h_min in HORIZONS_MIN:
+    for h_min in horizons():
         h = h_min // config.INTERVAL_MINUTES
         X = build(R, P, h, rain, load_provider(df, h_min))
         rain_notes[h_min] = build.observed_share
@@ -212,8 +224,8 @@ def main():
             preds["provider"] = test.provider_s / test.ff
         metrics += evaluate(test, preds, h_min)
         models[h_min] = model
-        if h_min == 30:
-            example = {"test": test, "preds": preds}
+        if h_min == EXAMPLE_HORIZON_MIN or not example:
+            example = {"test": test, "preds": preds, "h_min": h_min}
         print(f"  {h_min:2d} min ahead: trained on {len(train):,} rows, tested on {len(test):,}")
 
     m = pd.DataFrame(metrics)
@@ -227,13 +239,13 @@ def main():
 
 
 def plot_example(example, names):
-    test, preds = example["test"], example["preds"]
+    test, preds, h_min = example["test"], example["preds"], example["h_min"]
     # The most congested held-out weekday, on its most congested segment.
     wk = test[test.weekday == 1]
     day = wk.groupby(wk.index.date).y.mean().idxmax()
     seg = wk[wk.index.date == day].groupby(["direction", "seg_order"]).y.mean().idxmax()
     sel = (test.index.date == day) & (test.direction == seg[0]) & (test.seg_order == seg[1])
-    t = test.index[sel] + 2 * STEP   # plot each forecast at the time it is for
+    t = test.index[sel] + pd.Timedelta(minutes=h_min)   # plot each forecast at the time it is for
     ff = test.ff[sel]
     fig, ax = plt.subplots(figsize=(11, 4))
     ax.plot(t, test.y[sel] * ff / 60, color="black", lw=2, label="actual")
@@ -242,9 +254,9 @@ def plot_example(example, names):
     for method, (color, ls) in styles.items():
         if method not in preds:
             continue
-        ax.plot(t, preds[method][sel] * ff / 60, color=color, ls=ls, label=f"{method} (30 min ahead)")
+        ax.plot(t, preds[method][sel] * ff / 60, color=color, ls=ls, label=f"{method} ({h_min} min ahead)")
     ax.set_ylabel("travel time (min)")
-    ax.set_title(f"{day:%a %d %b}: {names[seg]} ({seg[0]})  forecasts made 30 minutes earlier")
+    ax.set_title(f"{day:%a %d %b}: {names[seg]} ({seg[0]})  forecasts made {h_min} minutes earlier")
     ax.legend()
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -279,7 +291,7 @@ def write_report(m, n_days, test_days, source, rain_source, rain_notes):
         if baseline not in set(m.method):
             continue
         lines += ["", f"## Model vs {title}", ""]
-        for h in HORIZONS_MIN:
+        for h in horizons():
             base = m[(m.horizon_min == h) & (m.method == baseline)]
             if base.empty:
                 lines.append(f"- **{h} min ahead:** no {baseline} estimates logged for this horizon.")
