@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement or a new analysis
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+  - type: textarea
+    id: data
+    attributes:
+      label: Data or services needed
+      description: New APIs, datasets or AWS resources, and their cost or licence if known.
