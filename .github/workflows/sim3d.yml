@@ -1,10 +1,3 @@
-# Runs the vehicle-level ORR simulation and publishes the interactive 3D viewer.
-#
-# Every run uploads the viewer (index.html + data.json + report.md) as the "orr-3d-viewer"
-# artifact and writes the scenario table to the run summary. To also publish it on GitHub
-# Pages: Settings -> Pages -> Source: GitHub Actions, then add the repository variable
-# DEPLOY_PAGES=true (Settings -> Secrets and variables -> Actions -> Variables).
-
 name: 3D traffic simulation
 
 on:
@@ -53,21 +46,23 @@ jobs:
   simulate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      # The OSM download is slow and Overpass servers are often busy, so keep the network
-      # between runs; it is fetched again only when fetch_network.py changes or the cache expires.
       - name: Restore road network
         id: network
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: data/orr_network.graphml
           key: orr-network-${{ hashFiles('fetch_network.py') }}
@@ -86,22 +81,22 @@ jobs:
           python sim3d.py --trips "$TRIPS" --pcu-per-agent "$PCU_PER_AGENT" --show "$SHOW" --seed "$SEED"
           cat output/sim3d/report.md >> "$GITHUB_STEP_SUMMARY"
 
-      # Load the built viewer in headless Chromium (software WebGL) and fail on any JS error or
-      # Content-Security-Policy violation, before the build is published.
       - name: Smoke-test the viewer
         run: |
           pip install "playwright>=1.48,<2" "pytest>=8,<10"
           python -m playwright install --with-deps chromium
           pytest -m browser tests/test_viewer_smoke.py -p no:cacheprovider
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: orr-3d-viewer
           path: output/sim3d
           retention-days: 30
 
-      - if: vars.DEPLOY_PAGES == 'true' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        if: vars.DEPLOY_PAGES == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: output/sim3d
 
@@ -110,11 +105,14 @@ jobs:
     if: vars.DEPLOY_PAGES == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
