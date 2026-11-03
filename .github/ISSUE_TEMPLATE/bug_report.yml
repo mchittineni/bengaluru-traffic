@@ -1,0 +1,27 @@
+name: Bug report
+description: Something produces an error or a wrong result
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the command you ran and the full error or the result you think is wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: script
+    attributes:
+      label: Script or component
+      placeholder: e.g. forecast.py, sim3d.py, viewer, aws/main.tf
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: e.g. macOS 15, Python 3.13, demo data or real data
