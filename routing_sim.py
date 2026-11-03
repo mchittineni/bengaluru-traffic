@@ -25,6 +25,7 @@ import os
 import re
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -79,8 +80,9 @@ def first_token(v):
 
 
 class Network:
-    def __init__(self, path):
-        G = ox.load_graphml(path)
+    def __init__(self, source):
+        """`source`: a GraphML path from fetch_network.py, or an osmnx-style MultiDiGraph."""
+        G = ox.load_graphml(source) if isinstance(source, str) else source
         nodes = list(G.nodes)
         idx = {n: i for i, n in enumerate(nodes)}
         self.n = len(nodes)
@@ -220,7 +222,7 @@ def assign(net, classes, max_iter=60, tol=1e-3):
     """Multi-class Frank-Wolfe: each class's flows move toward its cheapest paths."""
     xs = [all_or_nothing(net, c["demand"], net.t0) for c in classes]
     gap = 1.0
-    for it in range(1, max_iter + 1):
+    for it in range(1, max_iter + 1):  # noqa: B007 - `it` is returned as the iteration count
         x = sum(xs)
         costs = [class_cost(net, x, c) for c in classes]
         ys = [all_or_nothing(net, c["demand"], cost) for c, cost in zip(classes, costs)]
@@ -230,7 +232,7 @@ def assign(net, classes, max_iter=60, tol=1e-3):
             break
         dx = sum(ds)
 
-        def slope(lam):
+        def slope(lam, x=x, dx=dx, ds=ds):
             z = x + lam * dx
             return sum(class_cost(net, z, c) @ d for c, d in zip(classes, ds))
 
