@@ -22,7 +22,7 @@ Use an account where you can create IAM roles, Lambda, S3 and EventBridge Schedu
 ## 2. Check the corridor from your laptop first
 
 ```bash
-cd ~/bengaluru-traffic
+cd bengaluru-traffic   # repository root
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python collector.py check
 ```
@@ -59,7 +59,7 @@ aws s3 ls s3://$(terraform output -raw bucket)/raw/ --recursive | tail
 ## 4. Analyse
 
 ```bash
-cd ~/bengaluru-traffic
+cd bengaluru-traffic   # repository root
 .venv/bin/python fetch_s3.py $(terraform -chdir=aws output -raw bucket)
 .venv/bin/python analyze.py
 ```
