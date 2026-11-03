@@ -25,6 +25,12 @@ variable "collection_enabled" {
   default     = true
 }
 
+variable "alert_email" {
+  description = "Email notified when collection keeps failing (confirm the subscription email AWS sends). Empty = no email."
+  type        = string
+  default     = ""
+}
+
 locals {
   name = "blr-orr-traffic"
   src  = "${path.module}/.."
@@ -42,6 +48,22 @@ resource "aws_s3_bucket_public_access_block" "data" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_policy" "tls_only" {
+  bucket = aws_s3_bucket.data.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.data.arn, "${aws_s3_bucket.data.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.data]
 }
 
 # ---------- Lambda ----------
@@ -155,6 +177,37 @@ resource "aws_scheduler_schedule" "collect" {
   }
 }
 
+# ---------- Alerting ----------
+# Retries are off (a late retry would land in the wrong slot), so every failed run is a lost
+# sample. Alarm when at least 3 runs fail within an hour.
+
+resource "aws_sns_topic" "alerts" {
+  name = "${local.name}-alerts"
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count     = var.alert_email == "" ? 0 : 1
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+resource "aws_cloudwatch_metric_alarm" "collector_errors" {
+  alarm_name          = "${local.name}-collector-failing"
+  alarm_description   = "The ORR collector Lambda failed at least 3 times in the last hour; samples are being lost."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.collector.function_name }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 3
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching" # no invocations overnight is expected
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+}
+
 # ---------- Outputs ----------
 
 output "bucket" {
@@ -163,4 +216,9 @@ output "bucket" {
 
 output "function_name" {
   value = aws_lambda_function.collector.function_name
+}
+
+output "alerts_topic_arn" {
+  description = "Subscribe more endpoints (SMS, chat) to this topic for collection-failure alerts."
+  value       = aws_sns_topic.alerts.arn
 }

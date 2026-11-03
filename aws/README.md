@@ -38,12 +38,16 @@ If you get an error saying the service is unavailable in `ap-south-1`, set
 ```bash
 cd aws
 terraform init
-terraform plan
-terraform apply
+terraform plan -var alert_email=you@example.com
+terraform apply -var alert_email=you@example.com
 ```
 
-This creates an S3 bucket, a Lambda function, two IAM roles, a log group and the schedule.
-Collection starts at the next 15-minute mark inside the window.
+This creates an S3 bucket (TLS-only access), a Lambda function, two IAM roles, a log group, the
+schedule and a failure alarm. Collection starts at the next 15-minute mark inside the window.
+
+`alert_email` is optional. When set, AWS sends a subscription email you must confirm; after that
+you are emailed if the collector fails 3 or more times in an hour (retries are off, so each failure
+is a lost sample) and again when it recovers.
 
 Check that it's working after the first run:
 
