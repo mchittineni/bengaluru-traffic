@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org; worker-src blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:,">
+<title>ORR Traffic 3D</title>
+<meta name="description" content="Vehicle-level simulation of the Bengaluru Outer Ring Road morning peak under three routing rules.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"
+      integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"
+        integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/deck.gl@9.1.14/dist.min.js"
+        integrity="sha384-9Qz9Vg68oxSJ8alpsDVG3eFNLSZ8P16UxKNQyVheKTcnTlbnueGTD7D0MRd6Na0z" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --bg: #070b12;
+    --panel: rgba(13, 19, 30, 0.86);
+    --panel-border: rgba(140, 160, 190, 0.18);
+    --text: #e6ecf5;
+    --muted: #8d9ab0;
+    --accent: #4ea1ff;
+    --free: #2bd9a5;
+    --moderate: #f4c542;
+    --slow: #f2832b;
+    --jam: #e8384f;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 Inter, system-ui, sans-serif; overflow: hidden; }
+  #map { position: absolute; inset: 0; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35); }
+  h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  #info { top: 16px; left: 16px; width: 340px; padding: 14px 16px; }
+  #clock { font-family: "JetBrains Mono", monospace; font-size: 40px; font-weight: 700; line-height: 1;
+    margin: 10px 0 2px; letter-spacing: -0.02em; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 12px 0 6px;
+    background: rgba(255, 255, 255, 0.04); padding: 3px; border-radius: 9px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 7px 4px; border-radius: 7px;
+    font: 500 12px Inter, sans-serif; cursor: pointer; }
+  .seg button.on { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+  .seg button .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  #desc { min-height: 34px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; }
+  .stat .v { font: 700 18px "JetBrains Mono", monospace; }
+  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  #side { top: 16px; right: 56px; width: 330px; padding: 14px 16px; max-height: calc(100% - 120px); overflow: auto; }
+  #chart { width: 100%; height: 130px; display: block; margin: 8px 0 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px 2px; border-bottom: 1px solid var(--panel-border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  tr.on td { color: var(--text); font-weight: 600; }
+  tr:not(.on) td { color: var(--muted); }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; align-items: center; font-size: 12px; margin-top: 8px; }
+  .sw { width: 22px; height: 5px; border-radius: 3px; }
+  .col { width: 8px; height: 16px; border-radius: 2px; margin-left: 7px; background: linear-gradient(var(--jam), rgba(232, 56, 79, 0.35)); }
+  h2 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 0; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+
+  #bar { left: 50%; bottom: 16px; transform: translateX(-50%); width: min(920px, calc(100% - 32px));
+    padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #bar button, #bar select { background: rgba(255, 255, 255, 0.07); color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 7px 11px; font: 500 12px Inter, sans-serif; cursor: pointer; }
+  #bar button:hover { background: rgba(255, 255, 255, 0.13); }
+  #bar button.on { border-color: var(--accent); color: var(--accent); }
+  #play { width: 38px; }
+  #scrub { flex: 1; min-width: 160px; accent-color: var(--accent); }
+  #follow-card { left: 16px; bottom: 90px; width: 340px; padding: 12px 16px; display: none; }
+  #follow-card .row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  #follow-card .row.on { font-weight: 600; }
+  #follow-card .row:not(.on) { color: var(--muted); }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 10;
+    color: var(--muted); text-align: center; padding: 16px; }
+  #loading b { color: var(--text); display: block; font-size: 16px; margin-bottom: 6px; }
+  .maplibregl-ctrl-attrib { background: rgba(10, 14, 22, 0.7) !important; color: var(--muted); font-size: 10px; }
+  .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
+  .deck-tooltip { font: 12px Inter, sans-serif !important; background: var(--panel) !important;
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px 9px !important; white-space: pre-line; }
+  #toggle-side { display: none; }
+
+  @media (max-width: 760px) {
+    #info { top: 8px; left: 8px; right: 8px; width: auto; padding: 10px 12px; }
+    #clock { font-size: 28px; }
+    .stats { grid-template-columns: repeat(4, 1fr); }
+    .stat .v { font-size: 14px; }
+    #desc, #meta-line { display: none; }
+    #side { display: none; top: auto; bottom: 138px; left: 8px; right: 8px; width: auto; max-height: 45%; }
+    #side.open { display: block; }
+    #toggle-side { display: inline-block; }
+    #bar { bottom: 26px; width: calc(100% - 16px); }
+    #follow-card { left: 8px; right: 8px; width: auto; bottom: 138px; }
+    .maplibregl-ctrl-top-right { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="3D map of simulated traffic around the Outer Ring Road"></div>
+
+<div id="loading" role="status" aria-live="polite"><div><b>Loading simulation…</b><span id="loading-msg">Fetching data.json</span>
+  <noscript>This viewer needs JavaScript.</noscript></div></div>
+
+<div id="info" class="panel">
+  <h1>Bengaluru ORR · morning peak</h1>
+  <div class="sub" id="meta-line"></div>
+  <div id="clock">07:00</div>
+  <div class="sub" id="day-phase"></div>
+  <div class="seg" id="scenarios" role="group" aria-label="Routing rule"></div>
+  <div class="sub" id="desc"></div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="s-onroad">0</div><div class="k">On the road</div></div>
+    <div class="stat"><div class="v" id="s-arrived">0</div><div class="k">Arrived</div></div>
+    <div class="stat"><div class="v" id="s-trip">–</div><div class="k">Avg trip</div></div>
+    <div class="stat"><div class="v" id="s-delay">–</div><div class="k">Delay veh-h</div></div>
+  </div>
+</div>
+
+<div id="side" class="panel">
+  <h2>Vehicles on the road (PCU)</h2>
+  <canvas id="chart" role="img" aria-label="Vehicles on the road over the morning for each routing rule; the summary table below has the totals"></canvas>
+  <table id="compare"></table>
+  <h2>Legend</h2>
+  <div class="legend">
+    <div class="sw" style="background:var(--free)"></div><div>Road at ≥75% of free-flow speed</div>
+    <div class="sw" style="background:var(--moderate)"></div><div>50–75%</div>
+    <div class="sw" style="background:var(--slow)"></div><div>30–50%</div>
+    <div class="sw" style="background:var(--jam)"></div><div>Below 30%: jammed</div>
+    <div class="col"></div><div>Queue waiting to leave a link (height = PCU)</div>
+  </div>
+  <div class="legend">
+    <div class="sw" style="background:#7fe7ff"></div><div>Vehicle trail: trip within 1.5× free-flow time</div>
+    <div class="sw" style="background:#ffb547"></div><div>1.5–2.5× free-flow time</div>
+    <div class="sw" style="background:#ff5470"></div><div>Over 2.5×, or still driving at 11:30</div>
+  </div>
+  <p class="sub">Synthetic demand; point queues without spillback or signals. Compare scenarios with each other,
+    not with real travel times. Click a vehicle to ride along.</p>
+</div>
+
+<div id="follow-card" class="panel" aria-live="polite">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <h1 id="f-title">Commuter</h1><span class="sub mono" id="f-status"></span>
+  </div>
+  <div class="sub" id="f-sub"></div>
+  <div id="f-rows" style="margin-top:6px"></div>
+</div>
+
+<div id="bar" class="panel">
+  <button id="play" type="button" title="Play / pause (space)" aria-label="Pause">❚❚</button>
+  <input id="scrub" type="range" min="0" max="16200" step="1" value="2700" aria-label="Simulation time">
+  <select id="speed" aria-label="Playback speed">
+    <option value="10">10×</option><option value="30">30×</option><option value="60" selected>60×</option>
+    <option value="120">120×</option><option value="300">300×</option>
+  </select>
+  <button id="v-overview" type="button" class="on" aria-pressed="true" title="Tilted 3D overview (Esc)">3D</button>
+  <button id="v-top" type="button" aria-pressed="false" title="Top-down view">2D</button>
+  <button id="v-follow" type="button" aria-pressed="false" title="Ride along with a commuter (F)">Ride along</button>
+  <button id="toggle-side" type="button" aria-controls="side" aria-expanded="false">Stats</button>
+</div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
