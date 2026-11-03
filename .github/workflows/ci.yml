@@ -21,12 +21,15 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
+
       - name: Install ruff
         run: pip install "ruff>=0.8,<1"
+
       - name: Run ruff
         run: ruff check --output-format=github .
 
@@ -49,16 +52,20 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements*.txt
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+
       - name: pytest
         run: |
           pytest --cov --cov-report=term-missing:skip-covered --cov-report=markdown-append:"$GITHUB_STEP_SUMMARY" \
             --junitxml=junit.xml
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -74,12 +81,15 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+
       - name: Syntax check
         run: for f in viewer/*.js; do node --check "$f"; done
+
       - name: Unit tests
         run: node --test tests/viewer/*.test.js
 
@@ -93,13 +103,17 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "~1.15"
+
       - name: Format and check Terraform configuration
         run: terraform fmt -check -diff
+
       - name: Initialize Terraform
         run: terraform init -backend=false -input=false
+        
       - name: Validate Terraform configuration
         run: terraform validate
