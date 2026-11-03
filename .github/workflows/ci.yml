@@ -1,6 +1,3 @@
-# Quality gates for every pull request and push to main: lint, Python tests with coverage,
-# viewer unit tests and Terraform checks. The heavier 3D simulation runs in sim3d.yml.
-
 name: CI
 
 on:
@@ -20,13 +17,18 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - run: pip install "ruff>=0.8,<1"
-      - run: ruff check --output-format=github .
+      - name: Install ruff
+        run: pip install "ruff>=0.8,<1"
+      - name: Run ruff
+        run: ruff check --output-format=github .
 
   test:
     name: test (Python ${{ matrix.python }})
@@ -35,25 +37,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.13 is the Lambda runtime (aws/main.tf); 3.12 is the oldest supported version.
         python: ["3.12", "3.13"]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements*.txt
-      - run: pip install -r requirements-dev.txt
-      - uses: actions/setup-node@v4
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"   # for the Python <-> viewer data contract test
+          node-version: "22"
       - name: pytest
         run: |
           pytest --cov --cov-report=term-missing:skip-covered --cov-report=markdown-append:"$GITHUB_STEP_SUMMARY" \
             --junitxml=junit.xml
-      - if: always()
-        uses: actions/upload-artifact@v4
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: junit-${{ matrix.python }}
           path: junit.xml
@@ -62,9 +70,12 @@ jobs:
   viewer:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
       - name: Syntax check
@@ -78,11 +89,17 @@ jobs:
     defaults:
       run:
         working-directory: aws
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "~1.15"   # match local; aws/main.tf needs >= 1.5
-      - run: terraform fmt -check -diff
-      - run: terraform init -backend=false -input=false
-      - run: terraform validate
+          terraform_version: "~1.15"
+      - name: Format and check Terraform configuration
+        run: terraform fmt -check -diff
+      - name: Initialize Terraform
+        run: terraform init -backend=false -input=false
+      - name: Validate Terraform configuration
+        run: terraform validate
