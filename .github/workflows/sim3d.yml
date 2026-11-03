@@ -1,0 +1,120 @@
+# Runs the vehicle-level ORR simulation and publishes the interactive 3D viewer.
+#
+# Every run uploads the viewer (index.html + data.json + report.md) as the "orr-3d-viewer"
+# artifact and writes the scenario table to the run summary. To also publish it on GitHub
+# Pages: Settings -> Pages -> Source: GitHub Actions, then add the repository variable
+# DEPLOY_PAGES=true (Settings -> Secrets and variables -> Actions -> Variables).
+
+name: 3D traffic simulation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - sim3d.py
+      - routing_sim.py
+      - fetch_network.py
+      - viewer/**
+      - tests/test_viewer_smoke.py
+      - requirements.txt
+      - .github/workflows/sim3d.yml
+  pull_request:
+    paths:
+      - sim3d.py
+      - routing_sim.py
+      - fetch_network.py
+      - viewer/**
+      - tests/test_viewer_smoke.py
+      - requirements.txt
+      - .github/workflows/sim3d.yml
+  workflow_dispatch:
+    inputs:
+      trips:
+        description: PCU departing 07:00-10:00
+        default: "60000"
+      pcu_per_agent:
+        description: PCU each simulated vehicle stands for
+        default: "5"
+      show:
+        description: Vehicles animated in the viewer
+        default: "3000"
+      seed:
+        description: Random seed for demand
+        default: "7"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sim3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # The OSM download is slow and Overpass servers are often busy, so keep the network
+      # between runs; it is fetched again only when fetch_network.py changes or the cache expires.
+      - name: Restore road network
+        id: network
+        uses: actions/cache@v4
+        with:
+          path: data/orr_network.graphml
+          key: orr-network-${{ hashFiles('fetch_network.py') }}
+
+      - name: Download road network from OpenStreetMap
+        if: steps.network.outputs.cache-hit != 'true'
+        run: mkdir -p data && python fetch_network.py
+
+      - name: Simulate
+        env:
+          TRIPS: ${{ inputs.trips || '60000' }}
+          PCU_PER_AGENT: ${{ inputs.pcu_per_agent || '5' }}
+          SHOW: ${{ inputs.show || '3000' }}
+          SEED: ${{ inputs.seed || '7' }}
+        run: |
+          python sim3d.py --trips "$TRIPS" --pcu-per-agent "$PCU_PER_AGENT" --show "$SHOW" --seed "$SEED"
+          cat output/sim3d/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Load the built viewer in headless Chromium (software WebGL) and fail on any JS error or
+      # Content-Security-Policy violation, before the build is published.
+      - name: Smoke-test the viewer
+        run: |
+          pip install "playwright>=1.48,<2" "pytest>=8,<10"
+          python -m playwright install --with-deps chromium
+          pytest -m browser tests/test_viewer_smoke.py -p no:cacheprovider
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orr-3d-viewer
+          path: output/sim3d
+          retention-days: 30
+
+      - if: vars.DEPLOY_PAGES == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output/sim3d
+
+  deploy:
+    needs: simulate
+    if: vars.DEPLOY_PAGES == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
