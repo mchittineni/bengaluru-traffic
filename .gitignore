@@ -14,3 +14,12 @@ data/
 output/
 cache/
 .DS_Store
+
+# Test and lint artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+junit.xml
+node_modules/
