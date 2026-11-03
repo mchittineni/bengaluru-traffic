@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8,<10
+pytest-cov>=6,<8      # 6 added the markdown coverage report used in CI
+ruff>=0.8,<1

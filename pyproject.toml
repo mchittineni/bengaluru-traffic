@@ -1,0 +1,39 @@
+[project]
+name = "bengaluru-traffic"
+version = "0.1.0"
+description = "Bengaluru Outer Ring Road bottleneck analysis, travel-time forecast and traffic simulation"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["aws/build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = [
+    "B905",  # zip() without strict=: the zipped sequences here are built to the same length
+    "E402",  # matplotlib.use("Agg") must run before pyplot is imported
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["analyze", "collector", "config", "demo_data", "fetch_network", "fetch_s3",
+                     "fetch_weather", "forecast", "lambda_function", "providers", "routing_sim", "sim3d"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: end-to-end runs that take more than a few seconds",
+    "browser: renders the 3D viewer in headless Chromium (needs playwright and output/sim3d/data.json)",
+]
+filterwarnings = ["ignore::DeprecationWarning:osmnx.*"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv/*", "aws/*"]
+
+[tool.coverage.report]
+skip_empty = true
+fail_under = 80
