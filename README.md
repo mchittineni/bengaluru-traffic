@@ -1,12 +1,16 @@
 # Bengaluru ORR bottleneck finder
 
+[![CI](https://github.com/mchittineni/bengaluru-traffic/actions/workflows/ci.yml/badge.svg)](https://github.com/mchittineni/bengaluru-traffic/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Step 1 of the Bengaluru traffic model: measure where and when congestion starts on the
 Outer Ring Road (Silk Board -> KR Puram) using live travel times, before building a simulation.
 
 ## Setup
 
 ```bash
-cd ~/bengaluru-traffic
+git clone https://github.com/mchittineni/bengaluru-traffic.git
+cd bengaluru-traffic
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
@@ -124,3 +128,23 @@ OpenFreeMap basemap. When bumping a library version, update its `integrity` hash
 - Extend the corridor past Silk Board and KR Puram when a head appears at either end of the corridor.
 - Field visit or Street View check at each ranked head: lane drop, U-turn, bus stop, merge, signal.
 - Build the SUMO model (OSM network + sublane mixed traffic) and calibrate it against this data.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as described in
+[SECURITY.md](SECURITY.md).
+
+## License
+
+The code is released under the [MIT License](LICENSE). Data and services it uses have their own
+terms:
+
+- Road network and basemap: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors,
+  [ODbL](https://opendatacommons.org/licenses/odbl/). The viewer's basemap is served by
+  [OpenFreeMap](https://openfreemap.org/) using [OpenMapTiles](https://openmaptiles.org/); keep the
+  attribution shown on the map.
+- Weather: [Open-Meteo](https://open-meteo.com/), CC BY 4.0. Its free API is for non-commercial use.
+- Travel times from Amazon Location Service or the Google Routes API are subject to your agreement
+  with that provider, including any limits on storing or redistributing results.
+- Viewer libraries: [deck.gl](https://github.com/visgl/deck.gl) (MIT) and
+  [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) (BSD-3-Clause), loaded from a CDN.
