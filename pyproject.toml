@@ -3,6 +3,14 @@ name = "bengaluru-traffic"
 version = "0.1.0"
 description = "Bengaluru Outer Ring Road bottleneck analysis, travel-time forecast and traffic simulation"
 requires-python = ">=3.12"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Manideep Chittineni" }]
+
+[project.urls]
+Repository = "https://github.com/mchittineni/bengaluru-traffic"
+Issues = "https://github.com/mchittineni/bengaluru-traffic/issues"
 
 [tool.ruff]
 line-length = 120
