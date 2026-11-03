@@ -11,7 +11,7 @@ import sys
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import config
 
@@ -55,7 +55,7 @@ def google_route(origin, dest, depart=None):
             "routingPreference": "TRAFFIC_AWARE"}
     if depart:
         body.update(routingPreference="TRAFFIC_AWARE_OPTIMAL", trafficModel="BEST_GUESS",
-                    departureTime=depart.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+                    departureTime=depart.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"))
     req = urllib.request.Request(
         "https://routes.googleapis.com/directions/v2:computeRoutes",
         data=json.dumps(body).encode(),
