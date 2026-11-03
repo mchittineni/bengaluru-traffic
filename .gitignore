@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Terraform: providers, state (can contain account details) and build output
+aws/.terraform/
+aws/*.tfstate
+aws/*.tfstate.*
+aws/build/
+
+# Generated data and results (recreate with the scripts)
+data/
+output/
+cache/
+.DS_Store

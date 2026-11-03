@@ -1,0 +1,6 @@
+pandas
+matplotlib
+boto3
+osmnx
+scipy
+scikit-learn
